@@ -62,9 +62,7 @@ public:
 	UPROPERTY(EditAnywhere, Category = UserInterface)
 	FVector2D DrawSize = FVector2D::ZeroVector;
 
+	/** The Alignment/Pivot point that the widget is placed at relative to the position. */
 	UPROPERTY(EditAnywhere, Category = UserInterface)
-	TEnumAsByte<EHorizontalAlignment> HorizontalAlignment = HAlign_Center;
-
-	UPROPERTY(EditAnywhere, Category = UserInterface)
-	TEnumAsByte<EVerticalAlignment> VerticalAlignment = VAlign_Center;
+	FVector2D Pivot{0.5, 0.5f};
 };

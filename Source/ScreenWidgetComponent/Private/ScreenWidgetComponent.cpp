@@ -8,14 +8,17 @@ class SScreenWidgetComponentCanvas final : public SPanel
 {
 	SLATE_DECLARE_WIDGET(SScreenWidgetComponentCanvas, SPanel)
 
-	struct FSlot final : TWidgetSlotWithAttributeSupport<FSlot>, TAlignmentWidgetSlotMixin<FSlot>
+	struct FSlot final : TWidgetSlotWithAttributeSupport<FSlot>
 	{
-		SLATE_SLOT_BEGIN_ARGS_OneMixin(FSlot, TSlotBase<FSlot>, TAlignmentWidgetSlotMixin<FSlot>)
-		    SLATE_ATTRIBUTE(FVector2D, Position)
-		        SLATE_ATTRIBUTE(FVector2D, Size)
-		            SLATE_SLOT_END_ARGS()
+		/* clang-format off */
+		SLATE_SLOT_BEGIN_ARGS(FSlot, TSlotBase<FSlot>)
+		SLATE_ATTRIBUTE(FVector2D, Position)
+		SLATE_ATTRIBUTE(FVector2D, Size)
+		SLATE_ATTRIBUTE(FVector2D, Pivot)
+		SLATE_SLOT_END_ARGS()
+		/* clang-format on */
 
-		                void Construct(const FChildren& SlotOwner, FSlotArguments&& InArg)
+		void Construct(const FChildren& SlotOwner, FSlotArguments&& InArg)
 		{
 			TWidgetSlotWithAttributeSupport<FSlot>::Construct(SlotOwner, MoveTemp(InArg));
 
@@ -28,7 +31,10 @@ class SScreenWidgetComponentCanvas final : public SPanel
 				Position.Assign(*this, MoveTemp(InArg._Position));
 			}
 
-			TAlignmentWidgetSlotMixin<FSlot>::ConstructMixin(SlotOwner, MoveTemp(InArg));
+			if (InArg._Pivot.IsSet())
+			{
+				Pivot.Assign(*this, MoveTemp(InArg._Pivot));
+			}
 		}
 
 		int32 ZOrder = INT_MAX;
@@ -36,6 +42,8 @@ class SScreenWidgetComponentCanvas final : public SPanel
 		TSlateSlotAttribute<FVector2D> Position{*this, FVector2D::ZeroVector};
 
 		TSlateSlotAttribute<FVector2D> Size{*this, FVector2D::ZeroVector};
+
+		TSlateSlotAttribute<FVector2D> Pivot{*this, FVector2D{0.5f, 0.5f}};
 
 		void SetPosition(TAttribute<FVector2D> InPosition)
 		{
@@ -47,11 +55,17 @@ class SScreenWidgetComponentCanvas final : public SPanel
 			Size.Assign(*this, MoveTemp(InSize));
 		}
 
+		void SetPivot(TAttribute<FVector2D> InPivot)
+		{
+			Pivot.Assign(*this, MoveTemp(InPivot));
+		}
+
 		static void RegisterAttributes(FSlateWidgetSlotAttributeInitializer& AttributeInitializer)
 		{
 			TWidgetSlotWithAttributeSupport::RegisterAttributes(AttributeInitializer);
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.Size", Size, EInvalidateWidgetReason::Paint);
 			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.Position", Position, EInvalidateWidgetReason::Paint);
+			SLATE_ADD_SLOT_ATTRIBUTE_DEFINITION_WITH_NAME(FSlot, AttributeInitializer, "Slot.Pivot", Pivot, EInvalidateWidgetReason::Paint);
 		}
 	};
 
@@ -100,7 +114,6 @@ class SScreenWidgetComponentCanvas final : public SPanel
 
 	void Construct(const FArguments& InArgs, const FLocalPlayerContext& InPlayerContext)
 	{
-		SetVisibility(InArgs._Visibility);
 		PlayerContext = InPlayerContext;
 		Children.AddSlots(MoveTemp(const_cast<TArray<FSlot::FSlotArguments>&>(InArgs._Slots)));
 	}
@@ -138,22 +151,23 @@ class SScreenWidgetComponentCanvas final : public SPanel
 				continue;
 			}
 
-			const double ViewportDist = FVector::Dist(ProjectionData.ViewOrigin, WorldLocation);
-			const FVector2D RoundedPosition2D(FMath::RoundToDouble(ScreenPosition2D.X), FMath::RoundToDouble(ScreenPosition2D.Y));
+			const FVector2D ScreenPositionToUse = Component->SlateWidget->GetPixelSnapping() == EWidgetPixelSnapping::Disabled
+			                                          ? ScreenPosition2D
+			                                          : FVector2D{FMath::RoundToDouble(ScreenPosition2D.X), FMath::RoundToDouble(ScreenPosition2D.Y)};
 
 			FVector2D ViewportPosition2D;
-			USlateBlueprintLibrary::ScreenToViewport(PC, RoundedPosition2D, OUT ViewportPosition2D);
+			USlateBlueprintLibrary::ScreenToViewport(PC, ScreenPositionToUse, OUT ViewportPosition2D);
 
-			const FVector ViewportPosition(ViewportPosition2D.X, ViewportPosition2D.Y, ViewportDist);
+			const auto ViewportDist = FVector::Dist(ProjectionData.ViewOrigin, WorldLocation);
 
 			Entry.ContainerWidget->SetVisibility(EVisibility::SelfHitTestInvisible);
 
-			const auto& AbsoluteProjectedLocation = ViewportGeometry.LocalToAbsolute(FVector2D(ViewportPosition.X, ViewportPosition.Y));
+			const auto& AbsoluteProjectedLocation = ViewportGeometry.LocalToAbsolute(ViewportPosition2D);
 			const auto& LocalPosition = AllottedGeometry.AbsoluteToLocal(AbsoluteProjectedLocation);
 			const auto& ComponentDrawSize = Component->DrawSize.IsZero() ? Entry.ContainerWidget->GetDesiredSize() : Component->DrawSize;
 			Entry.Slot->SetPosition(FVector2D(LocalPosition.X, LocalPosition.Y));
 			Entry.Slot->SetSize(ComponentDrawSize);
-			bNeedSort |= Entry.SetZOrder(-ViewportPosition.Z);
+			bNeedSort |= Entry.SetZOrder(-ViewportDist);
 		}
 
 		if (bNeedSort)
@@ -198,38 +212,7 @@ class SScreenWidgetComponentCanvas final : public SPanel
 		for (const auto* ChildSlot : ChildOrder)
 		{
 			const auto& Size = ChildSlot->Size.Get();
-
-			// Handle HAlignment
-			FVector2D Offset(0.0f, 0.0f);
-
-			switch (ChildSlot->GetHorizontalAlignment())
-			{
-				case HAlign_Center:
-					Offset.X = -Size.X / 2.0f;
-					break;
-				case HAlign_Right:
-					Offset.X = -Size.X;
-					break;
-				case HAlign_Fill:
-				case HAlign_Left:
-					break;
-			}
-
-			// handle VAlignment
-			switch (ChildSlot->GetVerticalAlignment())
-			{
-				case VAlign_Bottom:
-					Offset.Y = -Size.Y;
-					break;
-				case VAlign_Center:
-					Offset.Y = -Size.Y / 2.0f;
-					break;
-				case VAlign_Top:
-				case VAlign_Fill:
-					break;
-			}
-
-			ArrangedChildren.AddWidget(AllottedGeometry.MakeChild(ChildSlot->GetWidget(), ChildSlot->Position.Get() + Offset, Size));
+			ArrangedChildren.AddWidget(AllottedGeometry.MakeChild(ChildSlot->GetWidget(), ChildSlot->Position.Get() - Size * ChildSlot->Pivot.Get(), Size));
 		}
 	}
 
@@ -258,7 +241,7 @@ class SScreenWidgetComponentCanvas final : public SPanel
 
 		auto& Entry = ComponentMap.FindOrAdd(Component);
 
-		AddSlot().HAlign(Component->HorizontalAlignment).VAlign(Component->VerticalAlignment)[SAssignNew(Entry.ContainerWidget, SBox)[Component->SlateWidget.ToSharedRef()]].Expose(Entry.Slot);
+		AddSlot().Pivot(Component->Pivot)[SAssignNew(Entry.ContainerWidget, SBox)[Component->SlateWidget.ToSharedRef()]].Expose(Entry.Slot);
 
 		ChildOrder.Add(Entry.Slot);
 	}

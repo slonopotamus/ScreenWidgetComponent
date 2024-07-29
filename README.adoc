@@ -3,3 +3,13 @@
 ScreenWidgetComponent is a very performant replacement for screen-space Unreal Engine WidgetComponent.
 
 Supports Unreal Engine 4.27 and newer.
+
+== What's wrong with WidgetComponent?
+
+. It uses expensive `SConstraintCanvas` internally instead of a cheaper `SCanvas`
+. It uses direct `float` Z-depth, resulting in unnecessary Z-order updates.
+. It reorders its children in O(n^2^) time almost every frame, leading to multi-millisecond CPU losses on **ChildOrder** invalidation.
+
+== Can optimizations this widget uses be applied to WidgetComponent?
+
+Definitely yes.
