@@ -70,7 +70,9 @@ class SScreenWidgetComponentCanvas final : public SPanel
 	};
 
 	SLATE_BEGIN_ARGS(ThisClass)
-	{}
+	{
+		_Visibility = ESlateVisibility::SelfHitTestInvisible;
+	}
 	SLATE_SLOT_ARGUMENT(FSlot, Slots)
 	SLATE_END_ARGS()
 
