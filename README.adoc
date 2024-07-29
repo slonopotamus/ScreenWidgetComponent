@@ -12,4 +12,4 @@ Supports Unreal Engine 4.27 and newer.
 
 == Can optimizations this widget uses be applied to WidgetComponent?
 
-Definitely yes.
+Definitely yes, though Epics usually need several years to accept changes like this.
