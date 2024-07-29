@@ -1,0 +1,5 @@
+﻿= ScreenWidgetComponent
+
+ScreenWidgetComponent is a very performant replacement for screen-space Unreal Engine WidgetComponent.
+
+Supports Unreal Engine 4.27 and newer.

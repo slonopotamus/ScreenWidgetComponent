@@ -1,0 +1,20 @@
+﻿{
+	"FileVersion": 3,
+	"Version": 1,
+	"VersionName": "1.0",
+	"FriendlyName": "ScreenWidgetComponent",
+	"Description": "ScreenWidgetComponent is a very performant replacement for screen-space Unreal Engine WidgetComponent",
+	"Category": "UI",
+	"CreatedBy": "Marat Radchenko",
+	"CreatedByURL": "https://github.com/slonopotamus",
+	"DocsURL": "https://github.com/slonopotamus/ScreenWidgetComponent",
+	"MarketplaceURL": "",
+	"CanContainContent": false,
+	"Modules": [
+		{
+			"Name": "ScreenWidgetComponent",
+			"Type": "Runtime",
+			"LoadingPhase": "Default"
+		}
+	]
+}
